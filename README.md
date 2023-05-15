@@ -1,1 +1,1 @@
-# 3-tier-architecture-using-terraform
+# THREE-TIER-ARCHITECTURE-USING-TERRAFORM
