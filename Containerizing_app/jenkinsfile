@@ -1,0 +1,60 @@
+pipeline {
+    agent any
+    environment {
+        AWS_ACCOUNT_ID="993413030456"
+        AWS_DEFAULT_REGION="US-EAST-2"
+        IMAGE_REPO_NAME="cipipeline"
+        IMAGE_TAG="latest"
+        REPOSITORY_URI= "${AWS_ACCOUNT_ID}.dkr.ecr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IAMGE_REPO_NAME}"
+    }
+
+    stages {
+        stage('Logging into AWS ECR') {
+            steps {
+                script {
+                    sh "aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 993413030456.dkr.ecr.us-east-2.amazonaws.com"
+                }
+            }
+        }
+        stage('Cloning Git') {
+            steps {
+                checkout([$class: 'GitSCM', branches: [[name]]])
+            }
+        }
+        stage ('Building Image') {
+            steps {
+                script {
+                    dockerImage = docker.build "${IMAGE_REPO_NAME}:${IMAGE_TAG}"
+                }
+            }
+        }
+        stage ('Pushing to ECR') {
+            steps {
+                script{
+                    sh "docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${REPOSITORY_URI}:${IMAGE_TAG}"
+                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}"
+                }
+            }
+        }
+        stage ('Updating the Deployment File') {
+            environment {
+                GIT_REPO_NAME = "CI-CD-PIPELINE"
+                GIT_USER_NAME = "UsaSai99charanteja"
+            }
+            steps {
+                withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]){
+                    sh '''
+                        git config user.email "saicharantejausa@gmail.com"
+                        git config user.name " Sai Charanteja"
+                        sed -i "s/${REPOSITORY_URI}:OLD_TAG|${REPOSITORY_URI}:${env.BUILD_NUMBER}/g" jenkins-ci/cd-argocd/deployment.yml
+                        git add jenkins-ci/cd-argocd/deployment.yml
+                        git commit -m "updated the image"
+                        git push https://${GITHUN_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+                    '''
+                }
+            }
+        }
+    }
+
+}
+     
